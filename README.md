@@ -63,9 +63,19 @@ Implemented a Gym Wrapper for the DeepMind Control Suit environments. You can ob
 ## Experiments
 ### MuJoCo CartPole Test
 
+https://user-images.githubusercontent.com/33734646/209011882-17eb2b25-35c9-439b-8df8-f64e698ea088.mp4
+
+
 ### CartPole Environment
 
-### Acrobat Environment
+https://user-images.githubusercontent.com/33734646/209012407-4a1bd432-ecf5-455a-9f36-179bf7b36f93.mp4
+
+
+### Ball in Cup Environment
+
+https://user-images.githubusercontent.com/33734646/209012545-4b430209-72a3-4150-83a6-017390e7bf35.mp4
+
+
 
 ## References
 
