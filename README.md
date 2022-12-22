@@ -65,6 +65,9 @@ Implemented a Gym Wrapper for the DeepMind Control Suit environments. You can ob
 
 https://user-images.githubusercontent.com/33734646/209011882-17eb2b25-35c9-439b-8df8-f64e698ea088.mp4
 
+https://user-images.githubusercontent.com/33734646/209122011-977ab6bd-e6ac-4a0e-b924-622d85ec4fd5.mp4
+
+
 
 ### CartPole Environment
 
