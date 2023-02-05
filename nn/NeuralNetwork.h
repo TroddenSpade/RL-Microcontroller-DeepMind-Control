@@ -1,42 +1,49 @@
 #ifndef NeuralNetwork_h
 #define NeuralNetwork_h
 
-// #include "Arduino.h" 
+#include <Arduino.h>
 
 
 enum activation_function {
-    SIGMOID,
-    TANH,
-    RELU,
-    LINEAR
+    Sigmoid,
+    Tanh,
+    ReLU,
+    None
 };
 
-enum loss_function {
-    L1,
-    MSE,
-
-}
+typedef struct{
+    int input;
+    int output;
+    activation_function af;
+    char* name;
+}Layer;
 
 
 class nn {
     public:
-        // load network constructor
-        nn(activation_function *afs, loss_function ls=MSE, bool backprop=false);
         // new network constructor
-        nn(int shape[], int len, activation_function *afs, loss_function ls=MSE, bool backprop=false);
+        nn(Layer *layers, int length);
         // network destructor
         ~nn();
 
-        float* forward(float *input, bool grad=false);
+        // feed forward
+        float* forward(float *input);
         // void backward();
 
-        // saves the network's weights and biases (only in Test Mode)
-        int save_weights();
+        // update weights and biases
+        int update_weight(float new_value, int idx, bool is_bias);
+
+        // print weights and biases
+        int print_weights(Stream &serialport);
+        
+
+        static Layer Linear(int input, int output, activation_function af);
+        static Layer Linear(int input, int output, activation_function af, char* name);
 
     private:
         // initializes the network's weights and biases
         void initialize();
-        void allocate(bool weights, bool backprop);
+        void allocate();
         float loss_fn(float *ptr_out, float*ptr_target);
         float mse_fn(float *ptr_out, float*ptr_target);
         float l1_fn(float *ptr_out, float*ptr_target);
@@ -47,21 +54,13 @@ class nn {
         float relu_fn(float x);
         float linear_fn(float x);
 
-        loss_function lf;                                       // loss function
-        activation_function *afs;                               // activation functions for each layer
-        bool backprop;                                          // whether or not to backpropagate
-        int *sh;                                                // shape of network
         int l;                                                  // length of the shape of network
         float *w;                                               // weights
         float *b;                                               // biases
-        float *a;                                               // activation outputs (output of layers)
-                                                                // (if backprop==true all of the outputs will be saved;
-                                                                // otherwise, we will only store two layers for forward pass)
-
-        float *dw;                                              // derivatives with respect to weights (backprop=true)
-        float *db;                                              // derivatives with respect to biases (backprop=true)
-        float *da;                                              // derivatives with respect to output of the layers (backprop=true)
-
+        float *a;                                               // activations
+		    Layer *layers;
 };
+
+
 
 #endif
