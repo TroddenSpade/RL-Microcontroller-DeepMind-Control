@@ -1,30 +1,15 @@
-// #include "Arduino.h”
+#include <time.h>
 #include <math.h>
 
 #include "NeuralNetwork.h"
 
-#include "data/w.h"
 
-
-nn::nn( activation_function *afs, bool backprop){
-	nn::w = weights;
-	nn::sh = shape;
-	nn::l = sizeof(shape) / sizeof(shape[0]);
-	nn::backprop = backprop;
-	nn::afs = afs;
-
-	// Allocate Memory for outputs
-	nn::allocate(false, backprop);
-}
-
-nn::nn(int *shape, int len, activation_function *afs, bool backprop){
-	nn::sh = shape;
-	nn::l = len;
-	nn::backprop = backprop;
-	nn::afs = afs;
-
+nn::nn(Layer *layers, int length){
+    nn::l = length;
+    nn::layers = layers;
+  
 	// Allocate Memory for weights, biases, and outputs
-	nn::allocate(true, backprop);
+	nn::allocate();
 	// Initialize the weights
 	nn::initialize();
 }
@@ -33,30 +18,31 @@ nn::~nn(){
 	free(nn::w);
 }
 
-void nn::allocate(bool weights, bool backprop){
-	int size = 0;
-	int sum = 0;
-	int maxi = 0;
-	for(int i=0; i<l-1; i++){
-		size += sh[i] * sh[i+1];
-		sum += sh[i+1];
-		if (sh[i+1] > maxi)
-			maxi = sh[i+1];
+static Layer nn::Linear(int input, int output, activation_function af, char* name){
+	return {input, output, af, name};
+}
+
+static Layer nn::Linear(int input, int output, activation_function af){
+	char name[20];
+	sprintf(name, "layer_%d", (int)time(NULL));
+	return {input, output, af, name};
+}
+
+void nn::allocate(){
+	int size_w = 0;
+	int size_b = 0;
+	int size_max = 0;
+
+	for(int i=0; i<nn::l; i++){
+		if (nn::layers[i].output > size_max) size_max = nn::layers[i].output;
+
+		size_w += nn::layers[i].input * nn::layers[i].output;
+        size_b += nn::layers[i].output;
 	}
 
-	if(weights){
-		nn::w = (float *)malloc(size * sizeof(float));
-		nn::b = (float *)malloc(sum * sizeof(float));
-	}
-
-	if(backprop){
-		nn::a = (float *)malloc(sum * sizeof(float));
-		nn::da = (float *)malloc(sum * sizeof(float));
-		nn::dw = (float *)malloc(size * sizeof(float));
-		nn::db = (float *)malloc(sum * sizeof(float));
-	}else{
-		nn::a = (float *)malloc(2 * maxi * sizeof(float));
-	}
+    nn::w = (float *)malloc(size_w * sizeof(float));
+    nn::b = (float *)malloc(size_b * sizeof(float));
+    nn::a = (float *)malloc(2 * size_max * sizeof(float));
 }
 
 void nn::initialize(){
@@ -65,88 +51,66 @@ void nn::initialize(){
 
 	float *w_ptr = nn::w;
 	float *b_ptr = nn::b;
-	// weights
-	for(int i=0; i<l-1; i++){	
-		// calculate the range for the weights
-		float lower = (-1.0 / sqrt(sh[i]));
-		float upper = (1.0 / sqrt(sh[i]));
 
-		// generate random numbers
-		for(int j=0; j<sh[i+1]*sh[i]; j++){
-			*w_ptr = (upper - lower) * ((float)(rand() % (int)1e+6) / (int)1e+6)  + lower;
+	for(int i=0; i<nn::l; i++){	
+		// calculate the range for the weights
+		float lower = (-1.0 / sqrt(nn::layers[i].input));
+		float upper = (1.0 / sqrt(nn::layers[i].input));
+
+		// generate random numbers for the weights
+		for(int j=0; j<nn::layers[i].input*nn::layers[i].output; j++){
+			*w_ptr = (upper - lower) * ((float)(rand() % (int)1e+6) / (int)1e+6) + lower;
 			w_ptr++;
 		}
-	}
-	// biases
-	for(int i=1; i<l; i++){
-		for(int k=0; k<sh[i]; k++){
+
+		// generate random numbers for the biases
+		for(int j=0; j<nn::layers[i].output; j++){
 			*b_ptr = 0;
 			b_ptr++;
 		}
 	}
 }
 
-float* nn::forward(float *in_ptr, bool grad){
-	std::cout<< in_ptr[0] << " " << in_ptr[1] << " " << in_ptr[2] << " " << in_ptr[3] << std::endl;
+float* nn::forward(float *in_ptr){
 
 	float *w_ptr = nn::w;
 	float *b_ptr = nn::b;
 	float *a_ptr = nn::a;
 
-	for(int i=1; i<l; i++){
-		for(int j=0; j<sh[i]; j++){
+	for(int i=0; i<nn::l; i++){
+		for(int j=0; j<nn::layers[i].output; j++){
+			
 			*a_ptr = 0;
 			float *p = in_ptr;
-			for(int k=0; k<sh[i-1]; k++){
+			for(int k=0; k<nn::layers[i].input; k++){
 				*a_ptr += *(w_ptr++) * *(p++);
 			}
-			*a_ptr = nn::activation_fn(*a_ptr + *(b_ptr++), afs[i-1]);
+			*a_ptr = nn::activation_fn(*a_ptr + *(b_ptr++), nn::layers[i].af);
 			a_ptr++;
 		}
-		in_ptr = a_ptr - sh[i];
-		std::cout << in_ptr[0] << " " << in_ptr[1] << std::endl;
-		if(!grad || !nn::backprop){
-			if(i%2==0)
-				a_ptr = nn::a;
-		}
+		in_ptr = a_ptr - nn::layers[i].output;
+		if(i%2==1)
+			a_ptr = nn::a;
+
 	}
 	return in_ptr;
 }
 
-float nn::loss_fn(float *ptr_out, float*ptr_target){
-	switch(loss){
-		case MSE:
-			return nn::mse_fn(ptr_out, ptr_target);
-		case L1:
-			return nn::l1_fn(ptr_out, ptr_target);
-		default:
-			return nn::mse_fn(ptr_out, ptr_target);
-	}
+
+int nn::update_weight(float new_value, int idx, bool is_bias){
+	float *ptr = is_bias ? nn::b : nn::w;
+	ptr[idx] = new_value;
+	return 0;
 }
 
-float nn::mse_fn(float *ptr_out, float*ptr_target){
-	float sum = 0;
-	for(int i=0; i<sh[l-1]; i++){
-		sum += pow(*(ptr_out++) - *(ptr_target++), 2);
-	}
-	return sum / (2 * sh[l-1]);
-}
-
-float nn::l1_fn(float *ptr_out, float*ptr_target){
-	float sum = 0;
-	for(int i=0; i<sh[l-1]; i++){
-		sum += abs(*(ptr_out++) - *(ptr_target++));
-	}
-	return sum / sh[l-1];
-}
 
 float nn::activation_fn(float x, activation_function af){
 	switch(af){
-		case RELU:
+		case ReLU:
 			return nn::relu_fn(x);
-		case SIGMOID:
+		case Sigmoid:
 			return nn::sigmoid_fn(x);
-		case TANH:
+		case Tanh:
 			return nn::tanh_fn(x);
 		default:
 			return nn::linear_fn(x);
@@ -170,35 +134,29 @@ float nn::linear_fn(float x){
 	return x;
 }
 
-int nn::save_weights(){
-      
-    FILE *fptr = fopen("saved_w.txt", "w");
+
+int nn::print_weights(Stream &serialport){
     float *ptr = nn::w;
+	float *b_ptr = nn::b;
 
-	for(int i=0; i<l; i++){
-		fprintf(fptr, "%d,", sh[i]);
-	}
-	fprintf(fptr, "\n");
+	for(int i=0; i<nn::l; i++){
+		serialport.println("Layer: " + String(nn::layers[i].name));
 
-	for(int i=0; i<l-1; i++){		
 		// weights
-		for(int j=0; j<sh[i+1]; j++){
-			for(int k=0; k<sh[i]; k++){
-				fprintf(fptr, "%.18e,", *ptr);
-				ptr++;
+		serialport.println("Weights:");
+		for(int j=0; j<nn::layers[i].output; j++){
+			for(int k=0; k<nn::layers[i].input; k++){
+				serialport.print(String(*(ptr++)) + " ");
 			}
-			fprintf(fptr, "\n");
+			serialport.println();
 		}
-	}
-	
-	for(int i=0; i<l-1; i++){		
+
 		// biases
-		for(int b=0; b<sh[i+1]; b++){
-			fprintf(fptr, "%.18e,\n", *ptr);
-			ptr++;
+		serialport.println("Biases:");
+		for(int j=0; j<nn::layers[i].output; j++){
+			serialport.println(*(b_ptr++));
 		}
 	}
 	
-    fclose(fptr);
     return 0;
 }
